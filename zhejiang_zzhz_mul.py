@@ -6,6 +6,7 @@ import json
 import re
 import os
 import pandas
+import requests
 import xlrd
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -182,6 +183,37 @@ def get_sub_page(param):
         print('sub page count {} pageid {} timeout'.format(count, page_id))
         # get_sub_page(count, page_id)
 
+def get_sub_page_zhoubian(count, page_id):
+    print('sub page zhoubian count {} pageid {} start'.format(count, page_id))
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36'
+    }
+    response = requests.get("http://land.zzhz.zjol.com.cn/land/{}.html".format(page_id), headers=headers)
+    response.encoding = 'gbk'
+    pagetext = response.text
+    pattern = re.compile(u'周边项目价格参考.*?src=\"(.*?)\"',re.S)
+    if re.search(pattern, pagetext):
+        image_url = u'http://land.zzhz.zjol.com.cn' + re.findall(pattern, pagetext)[0]
+        print('get image: {}'.format(image_url))
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36'
+        }
+        img_response = requests.get(image_url,headers=headers)
+        with open(os.path.join(RESULT_DIR,'count_{}_pageid_{}.jpg'.format(count,page_id)), 'wb') as f:
+            f.write(img_response.content)
+
+
+def txt2excel():
+    for root, dirs, files in os.walk(RESULT_DIR):
+        for file in files:
+            if file[-4:]=='.txt':
+                print(file)
+                with open(os.path.join(RESULT_DIR, file), 'r') as f:
+                    df = pandas.read_html(f.read())
+                    bb = pandas.ExcelWriter(os.path.join(RESULT_DIR, file)[:-8] + '.xlsx')
+                    df[0].to_excel(bb)
+                    bb.close()
+
 
 def main(process_num):
     try:
@@ -199,8 +231,10 @@ def main(process_num):
         pool = Pool()
         for i in range(BEGIN_COUNT, len(idlist) + 1, process_num):
             pool.map(get_sub_page, [(t, idlist[t-1]) for t in range(i, i + process_num, 1)])
+            # pool.map(get_sub_page_zhoubian, [(t, idlist[t - 1]) for t in range(i, i + process_num, 1)])
     finally:
         browser.close()
+    txt2excel()
 
 
 if __name__ == '__main__':
